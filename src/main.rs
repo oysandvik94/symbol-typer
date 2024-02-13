@@ -28,7 +28,7 @@ fn play_game(symbols: &[char], symbol_to_match: char, streak: u32, highest_strea
         }
         RoundResult::Incorrect { played, target } => {
             println!("Feil!! Du skrev {} men det var {}", played, target);
-            play_game(symbols, pick_symbol(symbols), 0, 0)
+            play_game(symbols, symbol_to_match, 0, highest_streak)
         }
     }
 }
