@@ -11,7 +11,6 @@ use rand::seq::SliceRandom;
 
 use crate::highscore_store::store_highscore;
 
-
 fn main() {
     let symbols: Vec<char> = "!@#$%^&*()_+-=~\"{}'|;:,.<>?/\\`[]".chars().collect();
 
@@ -50,13 +49,8 @@ impl Game {
         let term = Term::stdout();
         let typed_character = TypedCharacter::type_character(term);
 
-        match test_characters(typed_character.character, symbol_to_match) {
+        match self.test_characters(typed_character, symbol_to_match) {
             RoundResult::Correct => {
-                if typed_character.elapsed > self.max_time {
-                    println!("Too slow! You used {0:?} time", typed_character.elapsed);
-                    return self.play_round(symbol_to_match, 0, highest_streak);
-                }
-
                 println!("Correct!");
                 let new_streak = streak + 1;
                 self.play_round(
@@ -69,11 +63,30 @@ impl Game {
                 println!("Feil!! Du skrev {} men det var {}", played, target);
                 self.play_round(symbol_to_match, 0, highest_streak)
             }
+            RoundResult::TooSlow { used_time } => {
+                println!("Too slow! You used {0:?} time", used_time);
+                self.play_round(symbol_to_match, 0, highest_streak)
+            }
         }
     }
 
     fn pick_symbol(&self) -> char {
         *self.symbols.choose(&mut rand::thread_rng()).unwrap()
+    }
+
+    fn test_characters(&self, played: TypedCharacter, target: char) -> RoundResult {
+        match played.character.eq(&target) {
+            true => match played.elapsed < self.max_time {
+                true => RoundResult::Correct,
+                false => RoundResult::TooSlow {
+                    used_time: played.elapsed,
+                },
+            },
+            false => RoundResult::Incorrect {
+                played: played.character,
+                target,
+            },
+        }
     }
 }
 
@@ -93,13 +106,8 @@ impl TypedCharacter {
 
 enum RoundResult {
     Correct,
+    TooSlow { used_time: Duration },
     Incorrect { played: char, target: char },
-}
-fn test_characters(played: char, target: char) -> RoundResult {
-    match played.eq(&target) {
-        true => RoundResult::Correct,
-        false => RoundResult::Incorrect { played, target },
-    }
 }
 
 // TODO: this method is ugly. should make a general cmd line parser and struct
