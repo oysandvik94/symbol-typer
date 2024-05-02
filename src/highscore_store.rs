@@ -1,4 +1,8 @@
-use std::{fs::{self, File}, io::{self, Write}, path::PathBuf};
+use std::{
+    fs::{self, File, OpenOptions},
+    io::{self, Write},
+    path::PathBuf,
+};
 
 use dirs::data_local_dir;
 
@@ -18,12 +22,13 @@ pub fn store_highscore(highscore: u32) -> io::Result<()> {
 pub fn retrieve_highscore() -> io::Result<u32> {
     let file_path = get_highscore_filepath()?;
 
-    // Write or update the high score
-    let highscore_file_content = fs::read_to_string(file_path)?;
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(file_path.clone())?;
 
-    let highscore = highscore_file_content
-        .parse::<u32>()
-        .unwrap_or(0);
+    let highscore_file_content = fs::read_to_string(file_path)?;
+    let highscore = highscore_file_content.parse::<u32>().unwrap_or(0);
 
     Ok(highscore)
 }
@@ -38,4 +43,3 @@ fn get_highscore_filepath() -> Result<PathBuf, io::Error> {
     file_path.push(HIGHSCORE_FILE);
     Ok(file_path)
 }
-
