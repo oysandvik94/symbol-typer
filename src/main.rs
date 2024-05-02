@@ -42,11 +42,12 @@ fn play_game(symbols: &[char], symbol_to_match: char, streak: u32, highest_strea
     match test_characters(character, symbol_to_match) {
         RoundResult::Correct => {
             println!("Correct!");
+            let new_streak = streak + 1;
             play_game(
                 symbols,
                 pick_symbol(symbols),
-                streak + 1,
-                std::cmp::max(streak, highest_streak),
+                new_streak,
+                std::cmp::max(new_streak, highest_streak),
             )
         }
         RoundResult::Incorrect { played, target } => {
