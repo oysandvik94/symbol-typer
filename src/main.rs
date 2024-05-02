@@ -12,6 +12,7 @@ use rand::seq::SliceRandom;
 use crate::highscore_store::store_highscore;
 
 fn main() {
+    let cli_ags = parse_commandline_arguments();
     let symbols: Vec<char> = "!@#$%^&*()_+-=~\"{}'|;:,.<>?/\\`[]".chars().collect();
 
     let highest_streak: u32 = match retrieve_highscore() {
@@ -24,7 +25,7 @@ fn main() {
 
     let game: Game = Game {
         symbols,
-        max_time: get_max_time(),
+        max_time: cli_ags.max_time,
     };
     loop {
         game.play_round(game.pick_symbol(), 0, highest_streak);
@@ -111,7 +112,10 @@ enum RoundResult {
 }
 
 // TODO: this method is ugly. should make a general cmd line parser and struct
-fn get_max_time() -> Duration {
+struct CommandLineArguments {
+    max_time: Duration,
+}
+fn parse_commandline_arguments() -> CommandLineArguments {
     println!("{:?}", env::args());
     let mut max_time = Duration::from_secs(1);
     let mut args = env::args().skip(1);
@@ -127,11 +131,16 @@ fn get_max_time() -> Duration {
                 }
                 _ => panic!("--time must be followed by a millisecond value"),
             },
+            "--clear-highscore" => match store_highscore(0) {
+                Err(error) => panic!("Could not clear highscore: {}", error),
+                Ok(_) => print!("Set highscore to 0"),
+            },
             _ => panic!(
                 "{} is an unknown argument. Supporting only --time for now",
                 arg
             ),
         };
     }
-    max_time
+
+    CommandLineArguments { max_time }
 }
