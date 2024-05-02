@@ -1,13 +1,19 @@
 mod highscore_store;
 
+use std::{
+    env,
+    time::{Duration, Instant},
+};
+
 use console::Term;
 use highscore_store::retrieve_highscore;
 use rand::seq::SliceRandom;
 
 use crate::highscore_store::store_highscore;
 
+
 fn main() {
-    let symbols: Vec<char> = "!@#$%^&*()_+-=~\"{}'|;:,.<>?/".chars().collect();
+    let symbols: Vec<char> = "!@#$%^&*()_+-=~\"{}'|;:,.<>?/\\`[]".chars().collect();
 
     let highest_streak: u32 = match retrieve_highscore() {
         Ok(streak_result) => streak_result,
@@ -17,43 +23,71 @@ fn main() {
         }
     };
 
+    let game: Game = Game {
+        symbols,
+        max_time: get_max_time(),
+    };
     loop {
-        let symbol_to_match: char = *symbols.choose(&mut rand::thread_rng()).unwrap();
-        play_game(&symbols, symbol_to_match, 0, highest_streak);
+        game.play_round(game.pick_symbol(), 0, highest_streak);
     }
 }
 
-fn pick_symbol(symbols: &[char]) -> char {
-    *symbols.choose(&mut rand::thread_rng()).unwrap()
+struct Game {
+    symbols: Vec<char>,
+    max_time: Duration,
 }
 
-fn play_game(symbols: &[char], symbol_to_match: char, streak: u32, highest_streak: u32) -> u32 {
-    println!("Streak: {streak}. Highest streak: {highest_streak}");
-    println!("{symbol_to_match}");
+impl Game {
+    fn play_round(&self, symbol_to_match: char, streak: u32, highest_streak: u32) -> u32 {
+        println!("Streak: {streak}. Highest streak: {highest_streak}");
+        println!("{symbol_to_match}");
 
-    if let Err(error) = store_highscore(highest_streak) {
-        eprintln!("Failed to store high score: {error}");
-        std::process::exit(1);
+        if let Err(error) = store_highscore(highest_streak) {
+            eprintln!("Failed to store high score: {error}");
+            std::process::exit(1);
+        }
+
+        let term = Term::stdout();
+        let typed_character = TypedCharacter::type_character(term);
+
+        match test_characters(typed_character.character, symbol_to_match) {
+            RoundResult::Correct => {
+                if typed_character.elapsed > self.max_time {
+                    println!("Too slow! You used {0:?} time", typed_character.elapsed);
+                    return self.play_round(symbol_to_match, 0, highest_streak);
+                }
+
+                println!("Correct!");
+                let new_streak = streak + 1;
+                self.play_round(
+                    self.pick_symbol(),
+                    new_streak,
+                    std::cmp::max(new_streak, highest_streak),
+                )
+            }
+            RoundResult::Incorrect { played, target } => {
+                println!("Feil!! Du skrev {} men det var {}", played, target);
+                self.play_round(symbol_to_match, 0, highest_streak)
+            }
+        }
     }
 
-    let term = Term::stdout();
-    let character: char = term.read_char().expect("Should be a character");
+    fn pick_symbol(&self) -> char {
+        *self.symbols.choose(&mut rand::thread_rng()).unwrap()
+    }
+}
 
-    match test_characters(character, symbol_to_match) {
-        RoundResult::Correct => {
-            println!("Correct!");
-            let new_streak = streak + 1;
-            play_game(
-                symbols,
-                pick_symbol(symbols),
-                new_streak,
-                std::cmp::max(new_streak, highest_streak),
-            )
-        }
-        RoundResult::Incorrect { played, target } => {
-            println!("Feil!! Du skrev {} men det var {}", played, target);
-            play_game(symbols, symbol_to_match, 0, highest_streak)
-        }
+struct TypedCharacter {
+    character: char,
+    elapsed: Duration,
+}
+impl TypedCharacter {
+    fn type_character(term: Term) -> TypedCharacter {
+        let start = Instant::now();
+        let character: char = term.read_char().expect("Should be a character");
+        let elapsed = start.elapsed();
+
+        TypedCharacter { character, elapsed }
     }
 }
 
@@ -66,4 +100,30 @@ fn test_characters(played: char, target: char) -> RoundResult {
         true => RoundResult::Correct,
         false => RoundResult::Incorrect { played, target },
     }
+}
+
+// TODO: this method is ugly. should make a general cmd line parser and struct
+fn get_max_time() -> Duration {
+    println!("{:?}", env::args());
+    let mut max_time = Duration::from_secs(1);
+    let mut args = env::args().skip(1);
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--time" => match args.next() {
+                Some(arg_value) => {
+                    max_time = match str::parse::<u64>(&arg_value) {
+                        Ok(millis) => Duration::from_millis(millis),
+                        Err(_) => panic!("{} could not be parsed to milliseconds", arg_value),
+                    };
+                }
+                _ => panic!("--time must be followed by a millisecond value"),
+            },
+            _ => panic!(
+                "{} is an unknown argument. Supporting only --time for now",
+                arg
+            ),
+        };
+    }
+    max_time
 }
